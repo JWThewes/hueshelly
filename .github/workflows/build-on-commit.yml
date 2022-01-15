@@ -2,9 +2,9 @@ name: Build on commit
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**', '!release/*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ '**', '!release/*' ]
 
 jobs:
 
