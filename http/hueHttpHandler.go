@@ -37,7 +37,7 @@ func (handler Handler) init() {
 	}
 }
 
-func (handler Handler) initValidator() {
+func (handler *Handler) initValidator() {
 	handler.validate = validator.New()
 	err := handler.validate.RegisterValidation("room", func(fl validator.FieldLevel) bool {
 		return len(fl.Field().String()) > 0 && fl.Field().Len() <= 32
