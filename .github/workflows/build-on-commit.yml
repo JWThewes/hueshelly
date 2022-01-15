@@ -21,7 +21,7 @@ jobs:
       - name: Build for Linux (x64)
         run: GOOS=linux GOARCH=amd64 go build -o hueshelly-linux .
       - name: Build for Raspberry
-        run: env GOOS=linux GOARCH=arm GOARM=5 go build hueshelly-raspberry .
+        run: env GOOS=linux GOARCH=arm GOARM=5 go build -o hueshelly-raspberry .
       - name: Build for macOS
         run: env GOOS=darwin GOARCH=amd64 go build -o hueshelly-macos .
       - name: Build for macOS (Apple Silicon)
