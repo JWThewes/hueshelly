@@ -2,6 +2,8 @@ package hueHttp
 
 import (
 	"encoding/json"
+	"errors"
+	"github.com/go-playground/validator/v10"
 	"hueshelly/config"
 	"hueshelly/hue"
 	"hueshelly/logging"
@@ -13,6 +15,7 @@ import (
 
 type Handler struct {
 	hueService hue.Service
+	validate   *validator.Validate
 }
 
 func New() Handler {
@@ -22,6 +25,7 @@ func New() Handler {
 }
 
 func (handler Handler) init() {
+	handler.initValidator()
 	http.HandleFunc("/toggle/lights/group/", handler.toggleLightsRoom)
 	http.HandleFunc("/toggle/light/", handler.toggleLight)
 	http.HandleFunc("/groups", handler.groups)
@@ -33,9 +37,24 @@ func (handler Handler) init() {
 	}
 }
 
+func (handler Handler) initValidator() {
+	handler.validate = validator.New()
+	err := handler.validate.RegisterValidation("room", func(fl validator.FieldLevel) bool {
+		return len(fl.Field().String()) > 0 && fl.Field().Len() <= 32
+	})
+	if err != nil {
+		logging.Logger.Println("Error registering room validator")
+	}
+}
+
 func (handler Handler) toggleLightsRoom(writer http.ResponseWriter, request *http.Request) {
 	room := strings.TrimPrefix(request.URL.Path, "/toggle/lights/group/")
-	err := handler.hueService.ToggleLightsInRoom(room)
+	err := handler.validate.Var(room, "room")
+	if err != nil {
+		handler.handleError(writer, errors.New("given group name is not valid"))
+		return
+	}
+	err = handler.hueService.ToggleLightsInRoom(room)
 	if err != nil {
 		handler.handleError(writer, err)
 	}
