@@ -6,11 +6,11 @@ import (
 	"hueshelly/logging"
 )
 
-func init() ***REMOVED***
+func init() {
 	logging.Logger.Println("Starting")
-***REMOVED***
+}
 
-func main() ***REMOVED***
+func main() {
 	config.HueShellyConfig.New()
 	hueHttp.New()
-***REMOVED***
+}

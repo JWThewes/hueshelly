@@ -6,6 +6,6 @@ import (
 
 var Logger *log.Logger
 
-func init() ***REMOVED***
+func init() {
 	Logger = log.Default()
-***REMOVED***
+}
