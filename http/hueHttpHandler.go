@@ -49,6 +49,8 @@ func (handler Handler) initValidator() {
 
 func (handler Handler) toggleLightsRoom(writer http.ResponseWriter, request *http.Request) {
 	room := strings.TrimPrefix(request.URL.Path, "/toggle/lights/group/")
+	room = strings.Replace(room, "\n", "", -1)
+	room = strings.Replace(room, "\r", "", -1)
 	err := handler.validate.Var(room, "room")
 	if err != nil {
 		handler.handleError(writer, errors.New("given group name is not valid"))
