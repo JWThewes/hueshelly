@@ -45,7 +45,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bin/hueshelly-linux-x64
+          asset_path: ./bin/hueshelly-linux
           asset_name: hueshelly-linux-x64
           asset_content_type: application/octet-stream
       - name: upload hueshelly-raspberry
