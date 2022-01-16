@@ -1,0 +1,86 @@
+name: Build on commit
+
+on:
+  push:
+    tags:
+      - 'release_*'
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: version
+        run: echo "::set-output name=version::$(cat ./version.txt)"
+        id: version
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+      - name: Build for Linux (x64)
+        run: GOOS=linux GOARCH=amd64 go build -o bin/hueshelly-linux .
+      - name: Build for Raspberry
+        run: env GOOS=linux GOARCH=arm GOARM=5 go build -o bin/hueshelly-raspberry .
+      - name: Build for macOS
+        run: env GOOS=darwin GOARCH=amd64 go build -o bin/hueshelly-macos .
+      - name: Build for macOS (Apple Silicon)
+        run: env GOOS=darwin GOARCH=arm64 go build -o bin/hueshelly-macos-apple-silicon .
+      - name: Build for Windows (x64)
+        run: GOOS=windows GOARCH=amd64 go build -o bin/hueshelly-win64.exe .
+      - name: release
+        uses: actions/create-release@v1
+        id: create_release
+        with:
+          draft: false
+          prerelease: true
+          release_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: upload hueshelly-linux-x64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/hueshelly-linux-x64
+          asset_name: hueshelly-linux-x64
+          asset_content_type: application/octet-stream
+      - name: upload hueshelly-raspberry
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/hueshelly-raspberry
+          asset_name: hueshelly-raspberry
+          asset_content_type: application/octet-stream
+      - name: upload hueshelly-macos
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/hueshelly-macos
+          asset_name: hueshelly-macos
+          asset_content_type: application/octet-stream
+      - name: upload hueshelly-macos-apple-silicon
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/hueshelly-macos-apple-silicon
+          asset_name: hueshelly-macos-apple-silicon
+          asset_content_type: application/octet-stream
+      - name: upload hueshelly-win64.exe
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/hueshelly-win64.exe
+          asset_name: hueshelly-win64.exe
+          asset_content_type: application/octet-stream
