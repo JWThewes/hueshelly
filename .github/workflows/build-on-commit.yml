@@ -7,24 +7,28 @@ on:
     branches: [ '**', '!release/*' ]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.17
-
       - name: Build for Linux (x64)
-        run: GOOS=linux GOARCH=amd64 go build -o hueshelly-linux .
+        run: GOOS=linux GOARCH=amd64 go build -o bin\hueshelly-linux .
       - name: Build for Raspberry
-        run: env GOOS=linux GOARCH=arm GOARM=5 go build -o hueshelly-raspberry .
+        run: env GOOS=linux GOARCH=arm GOARM=5 go build -o bin\hueshelly-raspberry .
       - name: Build for macOS
-        run: env GOOS=darwin GOARCH=amd64 go build -o hueshelly-macos .
+        run: env GOOS=darwin GOARCH=amd64 go build -o bin\hueshelly-macos .
       - name: Build for macOS (Apple Silicon)
-        run: env GOOS=darwin GOARCH=amd64 go build -o hueshelly-macos-apple-silicon .
+        run: env GOOS=darwin GOARCH=amd64 go build -o bin\hueshelly-macos-apple-silicon .
       - name: Build for Windows (x64)
-        run: GOOS=windows GOARCH=amd64 go build -o hueshelly-win64.exe .
+        run: GOOS=windows GOARCH=amd64 go build -o bin\hueshelly-win64.exe .
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist-without-markdown
+          path: bin\**
+
+
