@@ -30,8 +30,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: go-binaries
-          path: bin/*
-          #          path: /home/runner/work/hueshelly/hueshelly/bin/*
+          path: /home/runner/work/hueshelly/hueshelly/bin/*
           if-no-files-found: error
 
 
