@@ -1,4 +1,4 @@
-name: Build on commit
+name: Release hueshelly
 
 on:
   push:
