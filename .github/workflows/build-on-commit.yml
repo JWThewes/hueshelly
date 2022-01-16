@@ -28,7 +28,7 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: dist-without-markdown
-          path: bin\**
+          name: go-binaries
+          path: bin\*
 
 
