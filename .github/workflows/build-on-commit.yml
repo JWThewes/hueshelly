@@ -22,7 +22,7 @@ jobs:
       - name: Build for macOS
         run: env GOOS=darwin GOARCH=amd64 go build -o bin/hueshelly-macos .
       - name: Build for macOS (Apple Silicon)
-        run: env GOOS=darwin GOARCH=amd64 go build -o bin/hueshelly-macos-apple-silicon .
+        run: env GOOS=darwin GOARCH=arm64 go build -o bin/hueshelly-macos-apple-silicon .
       - name: Build for Windows (x64)
         run: GOOS=windows GOARCH=amd64 go build -o bin/hueshelly-win64.exe .
       - run: echo $(pwd)
@@ -30,8 +30,32 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: go-binaries
-          path: bin/*
+          name: hueshelly-linux-x64
+          path: bin/hueshelly-linux
+          if-no-files-found: error
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: hueshelly-raspberry
+          path: bin/hueshelly-raspberry
+          if-no-files-found: error
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: hueshelly-macos
+          path: bin/hueshelly-macos
+          if-no-files-found: error
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: hueshelly-macos-apple-silicon
+          path: bin/hueshelly-macos-apple-silicon
+          if-no-files-found: error
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: hueshelly-win64.exe
+          path: bin/hueshelly-win64.exe
           if-no-files-found: error
 
 
