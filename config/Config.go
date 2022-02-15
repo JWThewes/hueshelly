@@ -12,9 +12,10 @@ var (
 )
 
 type Config struct {
-	HueBridgeIp string `json:"hueBridgeIp"`
-	HueUser     string `json:"hueUser"`
-	ServerPort  int    `json:"serverPort"`
+	HueBridgeIp               string `json:"hueBridgeIp"`
+	HueUser                   string `json:"hueUser"`
+	ServerPort                int    `json:"serverPort"`
+	RestorePreviousLightState bool   `json:"restorePreviousLightState"`
 }
 
 func (config Config) New() {
