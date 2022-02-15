@@ -56,7 +56,12 @@ func (service Service) ToggleLight(lightId int) error {
 		light = nil
 		return err
 	} else {
-		err := light.SetState(huego.State{On: true, Bri: 254, TransitionTime: 0})
+		var err error
+		if config.HueShellyConfig.RestorePreviousLightState {
+			err = light.SetState(huego.State{On: true, TransitionTime: 0})
+		} else {
+			err = light.SetState(huego.State{On: true, Bri: 254, TransitionTime: 0})
+		}
 		if err != nil {
 			return err
 		}
@@ -83,7 +88,12 @@ func (service *Service) ToggleLightsInRoom(room string) error {
 				logging.Logger.Println("Group found - any lights on toggling to off")
 				return nil
 			} else {
-				err := group.SetState(huego.State{On: true, Bri: 254, TransitionTime: 0})
+				var err error
+				if config.HueShellyConfig.RestorePreviousLightState {
+					err = group.SetState(huego.State{On: true, TransitionTime: 0})
+				} else {
+					err = group.SetState(huego.State{On: true, Bri: 254, TransitionTime: 0})
+				}
 				if err != nil {
 					return err
 				}
