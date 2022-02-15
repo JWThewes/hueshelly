@@ -1,3 +1,8 @@
+# hueshelly v1.1.0
+
+* Support for restoring last light brightness
+    * Simply add "restorePreviousLightState": true to your config.json
+
 # hueshelly v1.0.0
 
 * Initial release
