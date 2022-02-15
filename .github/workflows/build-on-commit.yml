@@ -57,5 +57,3 @@ jobs:
           name: hueshelly-win64.exe
           path: bin/hueshelly-win64.exe
           if-no-files-found: error
-
-
