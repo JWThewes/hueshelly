@@ -2,43 +2,44 @@ package config
 
 import (
 	"encoding/json"
-	"hueshelly/logging"
-	"io/ioutil"
+	"fmt"
 	"os"
 )
 
-var (
-	HueShellyConfig Config
-)
-
+// Config stores all runtime settings loaded from config.json.
 type Config struct {
-	HueBridgeIp               string `json:"hueBridgeIp"`
+	HueBridgeIP               string `json:"hueBridgeIp"`
 	HueUser                   string `json:"hueUser"`
 	ServerPort                int    `json:"serverPort"`
 	RestorePreviousLightState bool   `json:"restorePreviousLightState"`
 }
 
-func (config Config) New() {
-	logging.Logger.Println("Reading config from config.json")
-	jsonFile, err := os.Open("config.json")
+// Load reads and validates configuration from disk.
+func Load(path string) (Config, error) {
+	content, err := os.ReadFile(path)
 	if err != nil {
-		handleConfigReadError(err)
+		return Config{}, fmt.Errorf("read config file %q: %w", path, err)
 	}
-	jsonContent, err := ioutil.ReadAll(jsonFile)
-	err = json.Unmarshal(jsonContent, &HueShellyConfig)
-	handleConfigReadError(err)
-	if err != nil {
-		handleConfigReadError(err)
+
+	var cfg Config
+	if err := json.Unmarshal(content, &cfg); err != nil {
+		return Config{}, fmt.Errorf("decode config file %q: %w", path, err)
 	}
-	err = jsonFile.Close()
-	if err != nil {
-		handleConfigReadError(err)
+
+	if err := cfg.Validate(); err != nil {
+		return Config{}, fmt.Errorf("validate config file %q: %w", path, err)
 	}
+
+	return cfg, nil
 }
 
-func handleConfigReadError(err error) {
-	if err != nil {
-		logging.Logger.Println("Error reading config.json. Please make sure file exists and is valid.")
-		logging.Logger.Fatalln(err)
+// Validate checks the required configuration fields.
+func (cfg Config) Validate() error {
+	if cfg.HueUser == "" {
+		return fmt.Errorf("hueUser is required")
 	}
+	if cfg.ServerPort <= 0 || cfg.ServerPort > 65535 {
+		return fmt.Errorf("serverPort must be between 1 and 65535")
+	}
+	return nil
 }

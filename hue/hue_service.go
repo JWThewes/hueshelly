@@ -2,54 +2,61 @@ package hue
 
 import (
 	"errors"
-	"hueshelly/config"
-	"hueshelly/logging"
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
+
+	"hueshelly/config"
+	"hueshelly/logging"
 
 	"github.com/openhue/openhue-go"
 )
 
+var errServiceNotInitialized = errors.New("hue service is not initialized")
+
 type Service struct {
-	home *openhue.Home
+	home                      *openhue.Home
+	restorePreviousLightState bool
 }
 
-func New() Service {
-	service := Service{}
-	service.init()
-	return service
-}
-
-func (service *Service) init() {
-	bridgeIP := strings.TrimSpace(config.HueShellyConfig.HueBridgeIp)
-	if len(bridgeIP) > 0 {
-		logging.Logger.Println("Using bridge at " + bridgeIP)
+func New(cfg config.Config) (*Service, error) {
+	bridgeIP := strings.TrimSpace(cfg.HueBridgeIP)
+	if bridgeIP != "" {
+		logging.Logger.Println("Using bridge at", bridgeIP)
 	} else {
 		logging.Logger.Println("Searching for bridge")
 		discoveredBridge, err := openhue.NewBridgeDiscovery().Discover()
 		if err != nil {
-			logging.Logger.Println("Error discovering bridge")
-			logging.Logger.Fatal(err)
+			return nil, fmt.Errorf("discover bridge: %w", err)
 		}
 		bridgeIP = discoveredBridge.IpAddress
-		logging.Logger.Println("Found hue bridge at " + bridgeIP)
+		if bridgeIP == "" {
+			return nil, fmt.Errorf("discovered bridge but received empty IP address")
+		}
+		logging.Logger.Println("Found hue bridge at", bridgeIP)
 	}
 
-	home, err := openhue.NewHome(bridgeIP, config.HueShellyConfig.HueUser)
+	home, err := openhue.NewHome(bridgeIP, cfg.HueUser)
 	if err != nil {
-		logging.Logger.Println("Error creating openhue home")
-		logging.Logger.Fatal(err)
+		return nil, fmt.Errorf("create hue home: %w", err)
 	}
-	_, err = home.GetBridgeHome()
-	if err != nil {
-		logging.Logger.Println("Error communicating with bridge")
-		logging.Logger.Fatal(err)
+	if _, err := home.GetBridgeHome(); err != nil {
+		return nil, fmt.Errorf("communicate with bridge: %w", err)
 	}
-	service.home = home
+
 	logging.Logger.Println("Logged in at hue bridge")
+	return &Service{
+		home:                      home,
+		restorePreviousLightState: cfg.RestorePreviousLightState,
+	}, nil
 }
 
-func (service Service) ToggleLight(lightID int) error {
+func (service *Service) ToggleLight(lightID int) error {
+	if err := service.ensureInitialized(); err != nil {
+		return err
+	}
+
 	light, err := service.findLightByID(lightID)
 	if err != nil {
 		return err
@@ -57,10 +64,10 @@ func (service Service) ToggleLight(lightID int) error {
 	if light.Id == nil {
 		return errors.New("light has no id")
 	}
+
 	if light.IsOn() {
 		off := false
-		err := service.home.UpdateLight(*light.Id, openhue.LightPut{On: &openhue.On{On: &off}})
-		if err != nil {
+		if err := service.home.UpdateLight(*light.Id, openhue.LightPut{On: &openhue.On{On: &off}}); err != nil {
 			return err
 		}
 		logging.Logger.Println("Light found - toggled to off")
@@ -69,12 +76,11 @@ func (service Service) ToggleLight(lightID int) error {
 
 	on := true
 	body := openhue.LightPut{On: &openhue.On{On: &on}}
-	if !config.HueShellyConfig.RestorePreviousLightState {
+	if !service.restorePreviousLightState {
 		brightness := openhue.Brightness(100)
 		body.Dimming = &openhue.Dimming{Brightness: &brightness}
 	}
-	err = service.home.UpdateLight(*light.Id, body)
-	if err != nil {
+	if err := service.home.UpdateLight(*light.Id, body); err != nil {
 		return err
 	}
 	logging.Logger.Println("Light found - toggled to on")
@@ -82,16 +88,20 @@ func (service Service) ToggleLight(lightID int) error {
 }
 
 func (service *Service) ToggleLightsInRoom(roomName string) error {
+	if err := service.ensureInitialized(); err != nil {
+		return err
+	}
+
 	rooms, err := service.home.GetRooms()
 	if err != nil {
-		logging.Logger.Println("Error getting rooms")
-		return err
+		return fmt.Errorf("get rooms: %w", err)
 	}
 
 	for _, room := range rooms {
 		if nameFromRoom(room) != roomName {
 			continue
 		}
+
 		groupedLightID, ok := groupedLightIDFromRoom(room)
 		if !ok {
 			return errors.New("group has no grouped_light service")
@@ -99,24 +109,28 @@ func (service *Service) ToggleLightsInRoom(roomName string) error {
 		return service.toggleGroupedLightByID(groupedLightID)
 	}
 
-	return errors.New("no room with name '" + roomName + "' found")
+	return fmt.Errorf("no room with name %q found", roomName)
 }
 
-func (service *Service) AvailableGroups() []Group {
+func (service *Service) AvailableGroups() ([]Group, error) {
+	if err := service.ensureInitialized(); err != nil {
+		return nil, err
+	}
+
 	rooms, err := service.home.GetRooms()
 	if err != nil {
-		return []Group{}
+		return nil, fmt.Errorf("get rooms: %w", err)
 	}
 	lights, err := service.home.GetLights()
 	if err != nil {
-		return []Group{}
+		return nil, fmt.Errorf("get lights: %w", err)
 	}
 
-	var groupList []Group
+	groupList := make([]Group, 0, len(rooms))
 	for _, room := range rooms {
-		groupStruct := Group{Name: nameFromRoom(room)}
+		group := Group{Name: nameFromRoom(room)}
 		lightIDs := service.lightIDsFromRoom(room)
-		var lightList []Light
+		lightList := make([]Light, 0, len(lightIDs))
 		for _, lightID := range lightIDs {
 			light, exists := lights[lightID]
 			if !exists {
@@ -128,17 +142,27 @@ func (service *Service) AvailableGroups() []Group {
 			}
 			lightList = append(lightList, Light{
 				Name: nameFromLight(light),
-				Id:   lightIDInt,
+				ID:   lightIDInt,
 			})
 		}
-		groupStruct.Lights = lightList
-		groupList = append(groupList, groupStruct)
+
+		sort.Slice(lightList, func(i, j int) bool {
+			if lightList[i].Name == lightList[j].Name {
+				return lightList[i].ID < lightList[j].ID
+			}
+			return lightList[i].Name < lightList[j].Name
+		})
+		group.Lights = lightList
+		groupList = append(groupList, group)
 	}
 
-	return groupList
+	sort.Slice(groupList, func(i, j int) bool {
+		return groupList[i].Name < groupList[j].Name
+	})
+	return groupList, nil
 }
 
-func (service Service) toggleGroupedLightByID(groupedLightID string) error {
+func (service *Service) toggleGroupedLightByID(groupedLightID string) error {
 	groupedLight, err := service.home.GetGroupedLightById(groupedLightID)
 	if err != nil {
 		return err
@@ -146,10 +170,10 @@ func (service Service) toggleGroupedLightByID(groupedLightID string) error {
 	if groupedLight.Id == nil {
 		return errors.New("grouped light has no id")
 	}
+
 	if groupedLight.IsOn() {
 		off := false
-		err := service.home.UpdateGroupedLight(*groupedLight.Id, openhue.GroupedLightPut{On: &openhue.On{On: &off}})
-		if err != nil {
+		if err := service.home.UpdateGroupedLight(*groupedLight.Id, openhue.GroupedLightPut{On: &openhue.On{On: &off}}); err != nil {
 			return err
 		}
 		logging.Logger.Println("Group found - any lights on toggling to off")
@@ -158,19 +182,18 @@ func (service Service) toggleGroupedLightByID(groupedLightID string) error {
 
 	on := true
 	body := openhue.GroupedLightPut{On: &openhue.On{On: &on}}
-	if !config.HueShellyConfig.RestorePreviousLightState {
+	if !service.restorePreviousLightState {
 		brightness := openhue.Brightness(100)
 		body.Dimming = &openhue.Dimming{Brightness: &brightness}
 	}
-	err = service.home.UpdateGroupedLight(*groupedLight.Id, body)
-	if err != nil {
+	if err := service.home.UpdateGroupedLight(*groupedLight.Id, body); err != nil {
 		return err
 	}
 	logging.Logger.Println("Group found - all lights off toggling to on")
 	return nil
 }
 
-func (service Service) findLightByID(lightID int) (*openhue.LightGet, error) {
+func (service *Service) findLightByID(lightID int) (*openhue.LightGet, error) {
 	lights, err := service.home.GetLights()
 	if err != nil {
 		return nil, err
@@ -185,7 +208,7 @@ func (service Service) findLightByID(lightID int) (*openhue.LightGet, error) {
 			return &lightCopy, nil
 		}
 	}
-	return nil, errors.New("light with id '" + strconv.Itoa(lightID) + "' not found")
+	return nil, fmt.Errorf("light with id %d not found", lightID)
 }
 
 func lightIDV1ToInt(idV1 *string) (int, error) {
@@ -203,12 +226,12 @@ func groupedLightIDFromRoom(room openhue.RoomGet) (string, bool) {
 	if room.Services == nil {
 		return "", false
 	}
-	for _, service := range *room.Services {
-		if service.Rid == nil || service.Rtype == nil {
+	for _, roomService := range *room.Services {
+		if roomService.Rid == nil || roomService.Rtype == nil {
 			continue
 		}
-		if *service.Rtype == openhue.ResourceIdentifierRtypeGroupedLight {
-			return *service.Rid, true
+		if *roomService.Rtype == openhue.ResourceIdentifierRtypeGroupedLight {
+			return *roomService.Rid, true
 		}
 	}
 	return "", false
@@ -228,7 +251,7 @@ func nameFromLight(light openhue.LightGet) string {
 	return *light.Metadata.Name
 }
 
-func (service Service) lightIDsFromRoom(room openhue.RoomGet) []string {
+func (service *Service) lightIDsFromRoom(room openhue.RoomGet) []string {
 	lightMap := map[string]struct{}{}
 	if room.Children == nil {
 		return []string{}
@@ -257,11 +280,19 @@ func (service Service) lightIDsFromRoom(room openhue.RoomGet) []string {
 		}
 	}
 
-	var lightIDs []string
+	lightIDs := make([]string, 0, len(lightMap))
 	for lightID := range lightMap {
 		lightIDs = append(lightIDs, lightID)
 	}
+	sort.Strings(lightIDs)
 	return lightIDs
+}
+
+func (service *Service) ensureInitialized() error {
+	if service == nil || service.home == nil {
+		return errServiceNotInitialized
+	}
+	return nil
 }
 
 type Group struct {
@@ -271,5 +302,5 @@ type Group struct {
 
 type Light struct {
 	Name string `json:"name"`
-	Id   int    `json:"id"`
+	ID   int    `json:"id"`
 }
