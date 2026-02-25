@@ -1,6 +1,6 @@
 module hueshelly
 
-go 1.25.7
+go 1.25
 
 require github.com/openhue/openhue-go v0.4.0
 
