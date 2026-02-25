@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
 	"hueshelly/config"
@@ -12,6 +13,15 @@ import (
 )
 
 func main() {
+	if err := logging.Init(""); err != nil {
+		log.Printf("failed to initialize file logging: %v", err)
+	}
+	defer func() {
+		if err := logging.Close(); err != nil {
+			logging.Logger.Println(err)
+		}
+	}()
+
 	cfg, err := config.Load("config.json")
 	if err != nil {
 		logging.Logger.Fatal(err)

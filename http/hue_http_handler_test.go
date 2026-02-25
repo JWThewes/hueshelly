@@ -1,6 +1,11 @@
 package huehttp
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+
+	"hueshelly/hue"
+)
 
 func TestParseRoomName(t *testing.T) {
 	t.Parallel()
@@ -90,5 +95,57 @@ func TestIsToggleMethod(t *testing.T) {
 	}
 	if isToggleMethod("DELETE") {
 		t.Fatalf("isToggleMethod(DELETE) = true, want false")
+	}
+}
+
+func TestCollectRooms(t *testing.T) {
+	t.Parallel()
+
+	groups := []hue.Group{
+		{Name: "Kitchen"},
+		{Name: "Bedroom"},
+		{Name: "Living Room"},
+	}
+
+	got := collectRooms(groups)
+	want := []roomResponse{
+		{Name: "Bedroom"},
+		{Name: "Kitchen"},
+		{Name: "Living Room"},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("collectRooms() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCollectLights(t *testing.T) {
+	t.Parallel()
+
+	groups := []hue.Group{
+		{
+			Name: "Kitchen",
+			Lights: []hue.Light{
+				{Name: "Counter", ID: 3},
+				{Name: "Ceiling", ID: 2},
+			},
+		},
+		{
+			Name: "Bedroom",
+			Lights: []hue.Light{
+				{Name: "Bedside", ID: 1},
+			},
+		},
+	}
+
+	got := collectLights(groups)
+	want := []lightResponse{
+		{ID: 1, Name: "Bedside", Room: "Bedroom"},
+		{ID: 2, Name: "Ceiling", Room: "Kitchen"},
+		{ID: 3, Name: "Counter", Room: "Kitchen"},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("collectLights() = %#v, want %#v", got, want)
 	}
 }
