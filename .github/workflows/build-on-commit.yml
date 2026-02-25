@@ -14,7 +14,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.25.7
       - name: Build for Linux (x64)
         run: GOOS=linux GOARCH=amd64 go build -o bin/hueshelly-linux .
       - name: Build for Raspberry
