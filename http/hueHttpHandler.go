@@ -3,7 +3,6 @@ package hueHttp
 import (
 	"encoding/json"
 	"errors"
-	"github.com/go-playground/validator/v10"
 	"hueshelly/config"
 	"hueshelly/hue"
 	"hueshelly/logging"
@@ -15,7 +14,6 @@ import (
 
 type Handler struct {
 	hueService hue.Service
-	validate   *validator.Validate
 }
 
 func New() Handler {
@@ -25,7 +23,6 @@ func New() Handler {
 }
 
 func (handler Handler) init() {
-	handler.initValidator()
 	http.HandleFunc("/toggle/lights/group/", handler.toggleLightsRoom)
 	http.HandleFunc("/toggle/light/", handler.toggleLight)
 	http.HandleFunc("/groups", handler.groups)
@@ -37,26 +34,15 @@ func (handler Handler) init() {
 	}
 }
 
-func (handler *Handler) initValidator() {
-	handler.validate = validator.New()
-	err := handler.validate.RegisterValidation("room", func(fl validator.FieldLevel) bool {
-		return len(fl.Field().String()) > 0 && fl.Field().Len() <= 32
-	})
-	if err != nil {
-		logging.Logger.Println("Error registering room validator")
-	}
-}
-
 func (handler Handler) toggleLightsRoom(writer http.ResponseWriter, request *http.Request) {
 	room := strings.TrimPrefix(request.URL.Path, "/toggle/lights/group/")
 	room = strings.Replace(room, "\n", "", -1)
 	room = strings.Replace(room, "\r", "", -1)
-	err := handler.validate.Var(room, "room")
-	if err != nil {
+	if len(room) == 0 || len(room) > 32 {
 		handler.handleError(writer, errors.New("given group name is not valid"))
 		return
 	}
-	err = handler.hueService.ToggleLightsInRoom(room)
+	err := handler.hueService.ToggleLightsInRoom(room)
 	if err != nil {
 		handler.handleError(writer, err)
 	}
@@ -72,10 +58,13 @@ func (handler *Handler) toggleLight(writer http.ResponseWriter, request *http.Re
 
 func (handler Handler) groups(writer http.ResponseWriter, _ *http.Request) {
 	groups := handler.hueService.AvailableGroups()
-	writer.Header().Add("Content-Type", "application/json; Charset=UTF-8'")
-	jsonValue, _ := json.Marshal(groups)
-	groups = nil
-	handler.writeResponse(writer, string(jsonValue))
+	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	encoder := json.NewEncoder(writer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(groups); err != nil {
+		log.Println(err)
+	}
 }
 
 func (handler *Handler) handleError(writer http.ResponseWriter, err error) {
