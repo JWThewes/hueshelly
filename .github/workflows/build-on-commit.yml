@@ -28,34 +28,33 @@ jobs:
       - run: echo $(pwd)
       - run: echo $(ls -ltra)
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: hueshelly-linux-x64
           path: bin/hueshelly-linux
           if-no-files-found: error
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: hueshelly-raspberry
           path: bin/hueshelly-raspberry
           if-no-files-found: error
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: hueshelly-macos
           path: bin/hueshelly-macos
           if-no-files-found: error
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: hueshelly-macos-apple-silicon
           path: bin/hueshelly-macos-apple-silicon
           if-no-files-found: error
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: hueshelly-win64.exe
           path: bin/hueshelly-win64.exe
           if-no-files-found: error
-
 
