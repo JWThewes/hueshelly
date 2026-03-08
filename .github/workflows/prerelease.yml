@@ -2,9 +2,9 @@ name: Prerelease hueshelly
 
 on:
   push:
-    branches: [ 'release/*' ]
+    branches: [ 'release/*', '*.*.*' ]
   pull_request:
-    branches: [ 'release/*' ]
+    branches: [ 'release/*', '*.*.*' ]
 
 jobs:
   build:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: version
-        run: echo "::set-output name=version::$(cat ./version.txt)"
+        run: echo "version=$(cat ./version.txt)" >> "$GITHUB_OUTPUT"
         id: version
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -29,17 +29,19 @@ jobs:
       - name: Build for Windows (x64)
         run: GOOS=windows GOARCH=amd64 go build -o bin/hueshelly-win64.exe .
       - name: release
+        if: github.event_name == 'push'
         uses: actions/create-release@v1
         id: create_release
         with:
           draft: false
           prerelease: true
           release_name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
           body_path: CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: upload hueshelly-linux-x64
+        if: github.event_name == 'push'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -49,6 +51,7 @@ jobs:
           asset_name: hueshelly-linux-x64
           asset_content_type: application/octet-stream
       - name: upload hueshelly-raspberry
+        if: github.event_name == 'push'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -58,6 +61,7 @@ jobs:
           asset_name: hueshelly-raspberry
           asset_content_type: application/octet-stream
       - name: upload hueshelly-macos
+        if: github.event_name == 'push'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -67,6 +71,7 @@ jobs:
           asset_name: hueshelly-macos
           asset_content_type: application/octet-stream
       - name: upload hueshelly-macos-apple-silicon
+        if: github.event_name == 'push'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -76,6 +81,7 @@ jobs:
           asset_name: hueshelly-macos-apple-silicon
           asset_content_type: application/octet-stream
       - name: upload hueshelly-win64.exe
+        if: github.event_name == 'push'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}

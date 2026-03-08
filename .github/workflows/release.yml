@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: version
-        run: echo "::set-output name=version::$(cat ./version.txt)"
+        run: echo "version=$(cat ./version.txt)" >> "$GITHUB_OUTPUT"
         id: version
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -33,9 +33,9 @@ jobs:
         id: create_release
         with:
           draft: false
-          prerelease: true
+          prerelease: false
           release_name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
           body_path: CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ github.token }}
