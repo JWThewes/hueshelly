@@ -1,11 +1,16 @@
 package hue
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"hueshelly/config"
 	"hueshelly/logging"
@@ -17,6 +22,9 @@ var errServiceNotInitialized = errors.New("hue service is not initialized")
 
 type Service struct {
 	home                      *openhue.Home
+	bridgeIP                  string
+	hueUser                   string
+	httpClient                *http.Client
 	restorePreviousLightState bool
 }
 
@@ -47,7 +55,15 @@ func New(cfg config.Config) (*Service, error) {
 
 	logging.Logger.Println("Logged in at hue bridge")
 	return &Service{
-		home:                      home,
+		home:     home,
+		bridgeIP: bridgeIP,
+		hueUser:  cfg.HueUser,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
 		restorePreviousLightState: cfg.RestorePreviousLightState,
 	}, nil
 }
@@ -109,6 +125,22 @@ func (service *Service) ToggleLightsInRoom(roomName string) error {
 		return service.toggleGroupedLightByID(groupedLightID)
 	}
 
+	zones, err := service.getZones()
+	if err != nil {
+		return err
+	}
+	for _, zone := range zones {
+		if nameFromRoom(zone) != roomName {
+			continue
+		}
+
+		groupedLightID, ok := groupedLightIDFromRoom(zone)
+		if !ok {
+			return errors.New("group has no grouped_light service")
+		}
+		return service.toggleGroupedLightByID(groupedLightID)
+	}
+
 	return fmt.Errorf("no room with name %q found", roomName)
 }
 
@@ -121,15 +153,47 @@ func (service *Service) AvailableGroups() ([]Group, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get rooms: %w", err)
 	}
+	zones, err := service.getZones()
+	if err != nil {
+		return nil, err
+	}
 	lights, err := service.home.GetLights()
 	if err != nil {
 		return nil, fmt.Errorf("get lights: %w", err)
 	}
 
-	groupList := make([]Group, 0, len(rooms))
+	groupList := make([]Group, 0, len(rooms)+len(zones))
 	for _, room := range rooms {
 		group := Group{Name: nameFromRoom(room)}
 		lightIDs := service.lightIDsFromRoom(room)
+		lightList := make([]Light, 0, len(lightIDs))
+		for _, lightID := range lightIDs {
+			light, exists := lights[lightID]
+			if !exists {
+				continue
+			}
+			lightIDInt, err := lightIDV1ToInt(light.IdV1)
+			if err != nil {
+				continue
+			}
+			lightList = append(lightList, Light{
+				Name: nameFromLight(light),
+				ID:   lightIDInt,
+			})
+		}
+
+		sort.Slice(lightList, func(i, j int) bool {
+			if lightList[i].Name == lightList[j].Name {
+				return lightList[i].ID < lightList[j].ID
+			}
+			return lightList[i].Name < lightList[j].Name
+		})
+		group.Lights = lightList
+		groupList = append(groupList, group)
+	}
+	for _, zone := range zones {
+		group := Group{Name: nameFromRoom(zone)}
+		lightIDs := service.lightIDsFromRoom(zone)
 		lightList := make([]Light, 0, len(lightIDs))
 		for _, lightID := range lightIDs {
 			light, exists := lights[lightID]
@@ -160,6 +224,48 @@ func (service *Service) AvailableGroups() ([]Group, error) {
 		return groupList[i].Name < groupList[j].Name
 	})
 	return groupList, nil
+}
+
+func (service *Service) getZones() (map[string]openhue.RoomGet, error) {
+	if service.httpClient == nil {
+		return nil, errors.New("zone API client is not initialized")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/clip/v2/resource/zone", service.bridgeIP), nil)
+	if err != nil {
+		return nil, fmt.Errorf("build zones request: %w", err)
+	}
+	req.Header.Set("hue-application-key", service.hueUser)
+
+	response, err := service.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get zones: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+		if readErr != nil {
+			return nil, fmt.Errorf("get zones failed with status %d and unreadable response body: %w", response.StatusCode, readErr)
+		}
+		return nil, fmt.Errorf("get zones failed with status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Data []openhue.RoomGet `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("decode zones response: %w", err)
+	}
+
+	zones := make(map[string]openhue.RoomGet, len(payload.Data))
+	for _, zone := range payload.Data {
+		if zone.Id == nil {
+			continue
+		}
+		zones[*zone.Id] = zone
+	}
+	return zones, nil
 }
 
 func (service *Service) toggleGroupedLightByID(groupedLightID string) error {
